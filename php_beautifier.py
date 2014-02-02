@@ -15,17 +15,18 @@ class PhpBeautifierCommand(sublime_plugin.TextCommand):
             return
 
         if self.view.is_dirty():
-            return self.status("Please save the file.")
+            return self.error("Please save the file.")
 
         # check if file exists.
         FILE = self.view.file_name()
         if not FILE or not os.path.exists(FILE):
-            return self.status("File {0} does not exist.".format(FILE))
+            return self.error("File {0} does not exist.".format(FILE))
 
         # check if extension is allowed.
         fileName, fileExtension = os.path.splitext(FILE)        
         if fileExtension[1:] not in settings.get('extensions'):
-            return self.status("File {0}{1} does not have a valid extension. Please edit your settings to allow this extension.".format(fileName, fileExtension))
+            if not self.missingFileExtension(fileExtension[1:], settings):
+                return            
 
         # Start doing stuff
         cmd = "php_beautifier"
@@ -48,6 +49,7 @@ class PhpBeautifierCommand(sublime_plugin.TextCommand):
         stdout, stderr = p.communicate(AllFileText)
         if len(stderr) == 0:
             self.view.replace(edit, allFile, self.fixup(stdout))
+            self.status("PhpBeautifier: File processed.")
         else:
             self.show_error_panel(self.fixup(stderr))
 
@@ -68,3 +70,16 @@ class PhpBeautifierCommand(sublime_plugin.TextCommand):
 
     def status(self, string):
         return sublime.status_message(string)
+
+    def error(self, string):
+        return sublime.error_message(string)
+
+    def missingFileExtension(self, fileExtension, settings):
+        if sublime.ok_cancel_dialog("Extension {0} is not a valid php extension. Would you like to add this extension to your preferences?.".format(fileExtension), "Yes, add {0} extension to my preferences".format(fileExtension)):
+            extensions = settings.get('extensions')
+            extensions.append(fileExtension)
+            settings.set('extensions', extensions)
+            settings = sublime.save_settings('PhpBeautifier.sublime-settings')
+            return True
+        return False
+
